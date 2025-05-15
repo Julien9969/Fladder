@@ -97,8 +97,8 @@ jobs:
 
       - name: Build Android APK and AAB
         run: |
-          flutter build apk --${{ env.BUILD_MODE }} --build-number=${{github.run_number}} --flavor production
-          flutter build appbundle --${{ env.BUILD_MODE }} --build-number=${{github.run_number}} --flavor production
+          flutter build apk --release --${{ env.BUILD_MODE }} --build-number=${{github.run_number}} --flavor production
+          flutter build appbundle --release --${{ env.BUILD_MODE }} --build-number=${{github.run_number}} --flavor production
 
       - name: Rename APK and AAB
         run: |
@@ -133,7 +133,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows EXE
-        run: flutter build windows --build-number=${{ github.run_number }}
+        run: flutter build windows --release --build-number=${{ github.run_number }}
 
       - name: Compile Inno Setup installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
@@ -176,7 +176,7 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS app
-        run: flutter build ipa --no-codesign --flavor production --build-number=${{ github.run_number }}
+        run: flutter build ipa --release --no-codesign --flavor production --build-number=${{ github.run_number }}
 
       - name: Create unsigned IPA
         run: |
@@ -212,7 +212,7 @@ jobs:
         run: flutter pub get
 
       - name: Build macOS app
-        run: flutter build macos --flavor production --build-number=${{ github.run_number }}
+        run: flutter build macos --release --flavor production --build-number=${{ github.run_number }}
 
       - name: Create DMG file
         run: hdiutil create -format UDZO -srcfolder build/macos/Build/Products/Release-production/fladder.app build/macos/Build/Products/Release-production/macOS.dmg

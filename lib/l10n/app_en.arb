@@ -1328,5 +1328,13 @@
         "type": "int"
       }
     }
+  },
+  "speedIndicator": "Playback rate: {speed}",
+  "@speedIndicator": {
+    "placeholders": {
+      "speed": {
+        "type": "double"
+      }
+    }
   }
 }

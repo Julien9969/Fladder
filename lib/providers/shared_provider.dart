@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/models/settings/client_settings_model.dart';
+import 'package:fladder/models/settings/discord_settings_model.dart';
 import 'package:fladder/models/settings/home_settings_model.dart';
 import 'package:fladder/models/settings/subtitle_settings_model.dart';
 import 'package:fladder/models/settings/video_player_settings.dart';
@@ -13,6 +14,7 @@ import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/service_provider.dart';
 import 'package:fladder/providers/settings/book_viewer_settings_provider.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
+import 'package:fladder/providers/settings/discord_settings_provider.dart';
 import 'package:fladder/providers/settings/home_settings_provider.dart';
 import 'package:fladder/providers/settings/photo_view_settings_provider.dart';
 import 'package:fladder/providers/settings/pigeon_player_settings_provider.dart';
@@ -52,6 +54,7 @@ class SharedUtility {
       ref.read(subtitleSettingsProvider.notifier).state = subtitleSettings;
       ref.read(bookViewerSettingsProvider.notifier).state = bookViewSettings;
       ref.read(photoViewSettingsProvider.notifier).state = photoViewSettings;
+      ref.read(discordSettingsProvider.notifier).initialize(discordSettings);
       return true;
     } catch (e) {
       return false;
@@ -221,6 +224,19 @@ class SharedUtility {
   set photoViewSettings(PhotoViewSettingsModel settings) {
     sharedPreferences.setString(_photoViewSettingsKey, settings.toJson());
   }
+
+  DiscordSettingsModel get discordSettings {
+    try {
+      return DiscordSettingsModel.fromJson(jsonDecode(sharedPreferences.getString(_discordSettingsKey) ?? ""));
+    } catch (e) {
+      log(e.toString());
+      return const DiscordSettingsModel();
+    }
+  }
+
+  set discordSettings(DiscordSettingsModel settings) {
+    sharedPreferences.setString(_discordSettingsKey, jsonEncode(settings.toJson()));
+  }
 }
 
 const String _loginCredentialsKey = 'loginCredentialsKey';
@@ -230,3 +246,4 @@ const String _videoPlayerSettingsKey = 'videoPlayerSettings';
 const String _subtitleSettingsKey = 'subtitleSettings';
 const String _bookViewSettingsKey = 'bookViewSettings';
 const String _photoViewSettingsKey = 'photoViewSettings';
+const String _discordSettingsKey = 'discordSettings';

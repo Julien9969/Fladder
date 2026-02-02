@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:fladder/models/media_playback_model.dart';
 import 'package:fladder/models/playback/playback_model.dart';
+import 'package:fladder/providers/discord_rich_presence_provider.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
 import 'package:fladder/providers/settings/video_player_settings_provider.dart';
 import 'package:fladder/util/debouncer.dart';
@@ -89,6 +90,9 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
       (state) => state.copyWith(playing: event),
     );
     ref.read(playBackModel)?.updatePlaybackPosition(currentState.position, currentState.playing, ref);
+
+    // Update Discord Rich Presence
+    _updateDiscordPresence(currentState.position, event);
   }
 
   Future<void> updatePosition(Duration event) async {
@@ -110,11 +114,27 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
             lastPosition: position,
           ));
       ref.read(playBackModel)?.updatePlaybackPosition(position, playbackState.playing, ref);
+
+      // Update Discord Rich Presence on significant position changes
+      _updateDiscordPresence(position, playbackState.playing);
     } else {
       mediaState.update((value) => value.copyWith(
             position: event,
           ));
     }
+  }
+
+  void _updateDiscordPresence(Duration position, bool playing) {
+    final playbackModel = ref.read(playBackModel);
+    ref.read(discordRichPresenceProvider).updatePresence(
+          playbackModel,
+          position: position,
+          playing: playing,
+        );
+  }
+
+  void clearDiscordPresence() {
+    ref.read(discordRichPresenceProvider).clearActivity();
   }
 
   Future<bool> loadPlaybackItem(PlaybackModel model, Duration startPosition) async {

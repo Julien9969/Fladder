@@ -914,7 +914,7 @@
   "@settingsPosterPinch": {},
   "settingsPosterSize": "Poster size",
   "@settingsPosterSize": {},
-  "settingsProfileDesc": "Lockscreen, Local URL, Seerr",
+  "settingsProfileDesc": "Lockscreen, Local URL, Seerr, Discord",
   "@settingsProfileDesc": {},
   "settingsProfileTitle": "Profile",
   "@settingsProfileTitle": {},
@@ -2230,5 +2230,32 @@
         "example": "1"
       }
     }
-  }
+  },
+  "discordRichPresence": "Discord Rich Presence",
+  "@discordRichPresence": {},
+  "discordEnabled": "Enable Discord Activity",
+  "@discordEnabled": {},
+  "discordEnabledDesc": "Show what you're watching on Discord",
+  "@discordEnabledDesc": {},
+  "discordShowTitle": "Show Media Title",
+  "@discordShowTitle": {},
+  "discordShowTitleDesc": "Display the title of the media you're watching",
+  "@discordShowTitleDesc": {},
+  "discordShowProgress": "Show Progress",
+  "@discordShowProgress": {},
+  "discordShowProgressDesc": "Display playback progress in activity",
+  "@discordShowProgressDesc": {},
+  "discordExcludedLibraries": "Excluded Libraries",
+  "@discordExcludedLibraries": {},
+  "discordExcludedLibrariesCount": "{count, plural, one{{count} library excluded} other{{count} libraries excluded}}",
+  "@discordExcludedLibrariesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "discordNoLibrariesFound": "No libraries found. Make sure you're logged in.",
+  "@discordNoLibrariesFound": {}
 }

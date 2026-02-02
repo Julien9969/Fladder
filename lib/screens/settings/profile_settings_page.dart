@@ -8,10 +8,14 @@ import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart' as enums;
 import 'package:fladder/models/seerr_credentials_model.dart';
 import 'package:fladder/providers/connectivity_provider.dart';
 import 'package:fladder/providers/cultures_provider.dart';
+import 'package:fladder/providers/discord_rich_presence_provider.dart';
 import 'package:fladder/providers/seerr_user_provider.dart';
+import 'package:fladder/providers/settings/discord_settings_provider.dart';
 import 'package:fladder/providers/user_provider.dart';
+import 'package:fladder/providers/views_provider.dart';
 import 'package:fladder/screens/settings/settings_list_tile.dart';
 import 'package:fladder/screens/settings/settings_scaffold.dart';
+import 'package:fladder/screens/settings/widgets/discord_library_exclusion_dialog.dart';
 import 'package:fladder/screens/settings/widgets/password_reset_dialog.dart';
 import 'package:fladder/screens/settings/widgets/seerr_connection_dialog.dart';
 import 'package:fladder/screens/settings/widgets/settings_label_divider.dart';
@@ -57,6 +61,9 @@ class _UserSettingsPageState extends ConsumerState<ProfileSettingsPage> {
     final user = ref.watch(userProvider);
     final seerrUser = ref.watch(seerrUserProvider);
     final cultures = ref.watch(culturesProvider);
+    final discordSettings = ref.watch(discordSettingsProvider);
+    final discordService = ref.watch(discordRichPresenceProvider);
+    final views = ref.watch(viewsProvider).views;
     final allowedSubModes = {
       enums.SubtitlePlaybackMode.$default,
       enums.SubtitlePlaybackMode.smart,
@@ -192,6 +199,71 @@ class _UserSettingsPageState extends ConsumerState<ProfileSettingsPage> {
             ),
           ],
         ),
+        if (discordService.isSupported) ...[
+          const SizedBox(height: 16),
+          ...settingsListGroup(
+            context,
+            SettingsLabelDivider(label: context.localized.discordRichPresence),
+            [
+              SettingsListTile(
+                label: Text(context.localized.discordEnabled),
+                subLabel: Text(context.localized.discordEnabledDesc),
+                trailing: Switch(
+                  value: discordSettings.enabled,
+                  onChanged: (value) {
+                    ref.read(discordSettingsProvider.notifier).setEnabled(value);
+                  },
+                ),
+                onTap: () {
+                  ref.read(discordSettingsProvider.notifier).setEnabled(!discordSettings.enabled);
+                },
+              ),
+              SettingsListTile(
+                label: Text(context.localized.discordShowTitle),
+                subLabel: Text(context.localized.discordShowTitleDesc),
+                trailing: Switch(
+                  value: discordSettings.showMediaTitle,
+                  onChanged: discordSettings.enabled
+                      ? (value) {
+                          ref.read(discordSettingsProvider.notifier).setShowMediaTitle(value);
+                        }
+                      : null,
+                ),
+                onTap: discordSettings.enabled
+                    ? () {
+                        ref.read(discordSettingsProvider.notifier).setShowMediaTitle(!discordSettings.showMediaTitle);
+                      }
+                    : null,
+              ),
+              SettingsListTile(
+                label: Text(context.localized.discordShowProgress),
+                subLabel: Text(context.localized.discordShowProgressDesc),
+                trailing: Switch(
+                  value: discordSettings.showProgress,
+                  onChanged: discordSettings.enabled
+                      ? (value) {
+                          ref.read(discordSettingsProvider.notifier).setShowProgress(value);
+                        }
+                      : null,
+                ),
+                onTap: discordSettings.enabled
+                    ? () {
+                        ref.read(discordSettingsProvider.notifier).setShowProgress(!discordSettings.showProgress);
+                      }
+                    : null,
+              ),
+              SettingsListTile(
+                label: Text(context.localized.discordExcludedLibraries),
+                subLabel: Text(
+                  discordSettings.excludedLibraries.isEmpty
+                      ? context.localized.none
+                      : context.localized.discordExcludedLibrariesCount(discordSettings.excludedLibraries.length),
+                ),
+                onTap: discordSettings.enabled ? () => showDiscordLibraryExclusionDialog(context, views) : null,
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:discord_rich_presence/discord_rich_presence.dart' as drp;
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,20 +14,43 @@ import 'package:fladder/models/playback/playback_model.dart';
 import 'package:fladder/providers/settings/discord_settings_provider.dart';
 
 final discordRichPresenceProvider = Provider<DiscordRichPresenceService>((ref) {
-  return DiscordRichPresenceService(ref);
+  final service = DiscordRichPresenceService(ref);
+  ref.onDispose(() {
+    unawaited(service.dispose());
+  });
+  // Attempt to initialize once the provider is read.
+  unawaited(service.initialize());
+  return service;
 });
 
 class DiscordRichPresenceService {
-  DiscordRichPresenceService(this.ref);
+  DiscordRichPresenceService(this.ref) {
+    ref.listen(discordSettingsProvider, (previous, next) {
+      final wasEnabled = previous?.enabled ?? false;
+      if (next.enabled && !wasEnabled) {
+        unawaited(initialize());
+      } else if (!next.enabled && wasEnabled) {
+        unawaited(clearActivity());
+      }
+    }, fireImmediately: true);
+  }
 
   final Ref ref;
 
   // Discord Application ID - Create one at https://discord.com/developers/applications
   // ignore: unused_field
   static const String _applicationId = '1449114323279548416'; // Fladder Discord Application ID
+  static const String _largeImageKey = 'fladder_icon';
+  static const int _maxConnectionAttempts = 5;
+  static const Duration _connectionRetryDelay = Duration(seconds: 1);
 
   bool _isInitialized = false;
   bool _isConnected = false;
+  bool _hasActivePresence = false;
+  DateTime? _sessionStart;
+
+  drp.Client? _client;
+  Completer<void>? _connectionCompleter;
 
   bool get isSupported => !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
@@ -36,32 +60,31 @@ class DiscordRichPresenceService {
     if (!isSupported || _isInitialized) return;
 
     try {
-      // Dynamic import to avoid issues on unsupported platforms
-      // The discord_rich_presence package will be loaded at runtime
-      _isInitialized = true;
-      log('Discord Rich Presence initialized');
+      if (!isEnabled) return;
+      final connected = await _ensureConnection();
+      if (connected) {
+        _isInitialized = true;
+        log('Discord Rich Presence initialized');
+      }
     } catch (e) {
       log('Failed to initialize Discord Rich Presence: $e');
     }
   }
 
   Future<void> connect() async {
-    if (!isSupported || !isEnabled) return;
-
-    try {
-      _isConnected = true;
-      log('Discord Rich Presence connected');
-    } catch (e) {
-      log('Failed to connect to Discord: $e');
-      _isConnected = false;
-    }
+    await _ensureConnection();
   }
 
   Future<void> disconnect() async {
     if (!isSupported) return;
 
     try {
+      await _client?.disconnect();
       _isConnected = false;
+      _isInitialized = false;
+      _hasActivePresence = false;
+      _sessionStart = null;
+      _client = null;
       log('Discord Rich Presence disconnected');
     } catch (e) {
       log('Failed to disconnect from Discord: $e');
@@ -69,9 +92,11 @@ class DiscordRichPresenceService {
   }
 
   Future<void> clearActivity() async {
-    if (!isSupported || !_isConnected) return;
+    if (!isSupported || (_client == null && !_hasActivePresence)) return;
 
     try {
+      await disconnect();
+      _hasActivePresence = false;
       log('Discord Rich Presence activity cleared');
     } catch (e) {
       log('Failed to clear Discord activity: $e');
@@ -94,17 +119,119 @@ class DiscordRichPresenceService {
     }
 
     try {
+      final connected = await _ensureConnection();
+      if (!connected || _client == null) {
+        return;
+      }
+
       final presenceInfo = _buildPresenceInfo(item, settings.showMediaTitle, settings.showProgress, position, playing);
 
       if (presenceInfo != null) {
-        log('Discord Rich Presence updated: ${presenceInfo['details']} - ${presenceInfo['state']}');
+        final activity = drp.Activity(
+          name: 'Fladder',
+          details: presenceInfo.details,
+          state: presenceInfo.state,
+          type: drp.ActivityType.watching,
+          timestamps: _buildTimestamps(position, settings.showProgress && playing),
+          assets: _buildAssets(presenceInfo.largeImageText),
+        );
+
+        await _client!.setActivity(activity);
+        _hasActivePresence = true;
+        log('Discord Rich Presence updated: ${presenceInfo.details} - ${presenceInfo.state}');
+      } else {
+        await clearActivity();
       }
+    } on SocketException catch (e) {
+      log('Failed to update Discord presence: $e');
+      await disconnect();
     } catch (e) {
       log('Failed to update Discord presence: $e');
     }
   }
 
-  Map<String, String>? _buildPresenceInfo(
+  Future<bool> _ensureConnection() async {
+    if (!isSupported || !isEnabled) return false;
+    if (_client != null && _isConnected) return true;
+
+    if (_connectionCompleter != null) {
+      try {
+        await _connectionCompleter!.future;
+      } catch (_) {
+        // Swallow connection errors handled elsewhere.
+      }
+      return _isConnected;
+    }
+
+    final completer = Completer<void>();
+    _connectionCompleter = completer;
+
+    try {
+      for (var attempt = 1; attempt <= _maxConnectionAttempts; attempt++) {
+        try {
+          final client = drp.Client(
+            clientId: _applicationId,
+            onTransportClosed: _handleTransportClosed,
+          );
+          await client.connect();
+          _client = client;
+          _isConnected = true;
+          _isInitialized = true;
+          log('Discord Rich Presence connected');
+          completer.complete();
+          return true;
+        } catch (e) {
+          _client = null;
+          _isConnected = false;
+          _isInitialized = false;
+
+          if (attempt == _maxConnectionAttempts) {
+            log("Failed to connect to Discord's IPC after $attempt attempts. Is the Discord desktop app running? Error: $e");
+            completer.completeError(e);
+            return false;
+          }
+
+          final delay = _connectionRetryDelay * attempt;
+          log("Discord IPC connection failed (attempt $attempt/$_maxConnectionAttempts). Retrying in ${delay.inMilliseconds}ms...");
+          await Future.delayed(delay);
+        }
+      }
+    } finally {
+      if (_connectionCompleter == completer) {
+        _connectionCompleter = null;
+      }
+    }
+
+    return false;
+  }
+
+  void _handleTransportClosed() {
+    _isConnected = false;
+    _hasActivePresence = false;
+    _sessionStart = null;
+    _client = null;
+  }
+
+  drp.ActivityTimestamps? _buildTimestamps(Duration? position, bool includeProgress) {
+    if (!includeProgress || position == null) {
+      _sessionStart = null;
+      return null;
+    }
+
+    final now = DateTime.now();
+    _sessionStart = now.subtract(position);
+    return drp.ActivityTimestamps(start: _sessionStart);
+  }
+
+  drp.ActivityAssets? _buildAssets(String label) {
+    if (_largeImageKey.isEmpty) return null;
+    return drp.ActivityAssets(
+      largeImage: _largeImageKey,
+      largeText: label,
+    );
+  }
+
+  _PresenceInfo? _buildPresenceInfo(
     ItemBaseModel? item,
     bool showTitle,
     bool showProgress,
@@ -151,11 +278,7 @@ class DiscordRichPresenceService {
       state = '$state • $positionStr';
     }
 
-    return {
-      'details': details,
-      'state': state,
-      'largeImageText': largeImageText,
-    };
+    return _PresenceInfo(details: details, state: state, largeImageText: largeImageText);
   }
 
   String _formatDuration(Duration duration) {
@@ -168,4 +291,16 @@ class DiscordRichPresenceService {
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
+
+  Future<void> dispose() async {
+    await disconnect();
+  }
+}
+
+class _PresenceInfo {
+  const _PresenceInfo({required this.details, required this.state, required this.largeImageText});
+
+  final String details;
+  final String state;
+  final String largeImageText;
 }

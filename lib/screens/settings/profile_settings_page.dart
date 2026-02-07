@@ -219,36 +219,19 @@ class _UserSettingsPageState extends ConsumerState<ProfileSettingsPage> {
                 },
               ),
               SettingsListTile(
-                label: Text(context.localized.discordShowTitle),
-                subLabel: Text(context.localized.discordShowTitleDesc),
-                trailing: Switch(
-                  value: discordSettings.showMediaTitle,
-                  onChanged: discordSettings.enabled
-                      ? (value) {
-                          ref.read(discordSettingsProvider.notifier).setShowMediaTitle(value);
-                        }
-                      : null,
-                ),
+                label: const Text('Application ID'),
+                subLabel: Text(discordSettings.applicationId),
                 onTap: discordSettings.enabled
                     ? () {
-                        ref.read(discordSettingsProvider.notifier).setShowMediaTitle(!discordSettings.showMediaTitle);
-                      }
-                    : null,
-              ),
-              SettingsListTile(
-                label: Text(context.localized.discordShowProgress),
-                subLabel: Text(context.localized.discordShowProgressDesc),
-                trailing: Switch(
-                  value: discordSettings.showProgress,
-                  onChanged: discordSettings.enabled
-                      ? (value) {
-                          ref.read(discordSettingsProvider.notifier).setShowProgress(value);
-                        }
-                      : null,
-                ),
-                onTap: discordSettings.enabled
-                    ? () {
-                        ref.read(discordSettingsProvider.notifier).setShowProgress(!discordSettings.showProgress);
+                        showDialog(
+                          context: context,
+                          builder: (context) => _ApplicationIdDialog(
+                            currentId: discordSettings.applicationId,
+                            onSave: (newId) {
+                              ref.read(discordSettingsProvider.notifier).setApplicationId(newId);
+                            },
+                          ),
+                        );
                       }
                     : null,
               ),
@@ -264,6 +247,81 @@ class _UserSettingsPageState extends ConsumerState<ProfileSettingsPage> {
             ],
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _ApplicationIdDialog extends StatefulWidget {
+  final String currentId;
+  final void Function(String) onSave;
+
+  const _ApplicationIdDialog({
+    required this.currentId,
+    required this.onSave,
+  });
+
+  @override
+  State<_ApplicationIdDialog> createState() => _ApplicationIdDialogState();
+}
+
+class _ApplicationIdDialogState extends State<_ApplicationIdDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentId);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Discord Application ID'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enter your Discord Application ID. You can create one at:',
+          ),
+          const SizedBox(height: 8),
+          const SelectableText(
+            'https://discord.com/developers/applications',
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            decoration: const InputDecoration(
+              labelText: 'Application ID',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            widget.onSave(_controller.text.trim());
+            Navigator.of(context).pop();
+          },
+          child: const Text('Save'),
+        ),
       ],
     );
   }

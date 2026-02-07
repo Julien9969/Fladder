@@ -9,8 +9,7 @@ abstract class DiscordSettingsModel with _$DiscordSettingsModel {
 
   const factory DiscordSettingsModel({
     @Default(false) bool enabled,
-    @Default(false) bool showMediaTitle,
-    @Default(true) bool showProgress,
+    @Default('1449114323279548416') String applicationId,
     @Default([]) List<String> excludedLibraries,
   }) = _DiscordSettingsModel;
 

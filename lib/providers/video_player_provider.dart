@@ -115,7 +115,6 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
           ));
       ref.read(playBackModel)?.updatePlaybackPosition(position, playbackState.playing, ref);
 
-      // Update Discord Rich Presence on significant position changes
       _updateDiscordPresence(position, playbackState.playing);
     } else {
       mediaState.update((value) => value.copyWith(
@@ -126,6 +125,9 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
 
   void _updateDiscordPresence(Duration position, bool playing) {
     final playbackModel = ref.read(playBackModel);
+    // Don't update if playback model is null (video has been stopped/closed)
+    if (playbackModel == null) return;
+
     ref.read(discordRichPresenceProvider).updatePresence(
           playbackModel,
           position: position,

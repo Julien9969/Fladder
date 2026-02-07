@@ -17,6 +17,7 @@ import 'package:fladder/models/media_playback_model.dart';
 import 'package:fladder/models/playback/playback_model.dart';
 import 'package:fladder/models/settings/video_player_settings.dart';
 import 'package:fladder/providers/api_provider.dart';
+import 'package:fladder/providers/discord_rich_presence_provider.dart';
 import 'package:fladder/providers/live_tv_provider.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
 import 'package:fladder/providers/settings/video_player_settings_provider.dart';
@@ -264,6 +265,12 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
   Future<void> stop() async {
     final playbackModel = ref.read(playBackModel);
     if (playbackModel == null) return;
+
+    // Clear playback model first to prevent any events from updating Discord presence
+    ref.read(playBackModel.notifier).update((state) => null);
+
+    // Clear Discord Rich Presence
+    ref.read(discordRichPresenceProvider).clearActivity();
 
     ref.read(mediaPlaybackProvider.notifier).update((state) => state.copyWith(state: VideoPlayerState.disposed));
     WakelockPlus.disable();

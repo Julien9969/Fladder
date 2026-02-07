@@ -15,8 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$DiscordSettingsModel {
   bool get enabled;
-  bool get showMediaTitle;
-  bool get showProgress;
+  String get applicationId;
   List<String> get excludedLibraries;
 
   /// Create a copy of DiscordSettingsModel
@@ -32,7 +31,7 @@ mixin _$DiscordSettingsModel {
 
   @override
   String toString() {
-    return 'DiscordSettingsModel(enabled: $enabled, showMediaTitle: $showMediaTitle, showProgress: $showProgress, excludedLibraries: $excludedLibraries)';
+    return 'DiscordSettingsModel(enabled: $enabled, applicationId: $applicationId, excludedLibraries: $excludedLibraries)';
   }
 }
 
@@ -43,10 +42,7 @@ abstract mixin class $DiscordSettingsModelCopyWith<$Res> {
       _$DiscordSettingsModelCopyWithImpl;
   @useResult
   $Res call(
-      {bool enabled,
-      bool showMediaTitle,
-      bool showProgress,
-      List<String> excludedLibraries});
+      {bool enabled, String applicationId, List<String> excludedLibraries});
 }
 
 /// @nodoc
@@ -63,8 +59,7 @@ class _$DiscordSettingsModelCopyWithImpl<$Res>
   @override
   $Res call({
     Object? enabled = null,
-    Object? showMediaTitle = null,
-    Object? showProgress = null,
+    Object? applicationId = null,
     Object? excludedLibraries = null,
   }) {
     return _then(_self.copyWith(
@@ -72,14 +67,10 @@ class _$DiscordSettingsModelCopyWithImpl<$Res>
           ? _self.enabled
           : enabled // ignore: cast_nullable_to_non_nullable
               as bool,
-      showMediaTitle: null == showMediaTitle
-          ? _self.showMediaTitle
-          : showMediaTitle // ignore: cast_nullable_to_non_nullable
-              as bool,
-      showProgress: null == showProgress
-          ? _self.showProgress
-          : showProgress // ignore: cast_nullable_to_non_nullable
-              as bool,
+      applicationId: null == applicationId
+          ? _self.applicationId
+          : applicationId // ignore: cast_nullable_to_non_nullable
+              as String,
       excludedLibraries: null == excludedLibraries
           ? _self.excludedLibraries
           : excludedLibraries // ignore: cast_nullable_to_non_nullable
@@ -181,16 +172,16 @@ extension DiscordSettingsModelPatterns on DiscordSettingsModel {
 
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>(
-    TResult Function(bool enabled, bool showMediaTitle, bool showProgress,
-            List<String> excludedLibraries)?
+    TResult Function(
+            bool enabled, String applicationId, List<String> excludedLibraries)?
         $default, {
     required TResult orElse(),
   }) {
     final _that = this;
     switch (_that) {
       case _DiscordSettingsModel() when $default != null:
-        return $default(_that.enabled, _that.showMediaTitle, _that.showProgress,
-            _that.excludedLibraries);
+        return $default(
+            _that.enabled, _that.applicationId, _that.excludedLibraries);
       case _:
         return orElse();
     }
@@ -211,15 +202,15 @@ extension DiscordSettingsModelPatterns on DiscordSettingsModel {
 
   @optionalTypeArgs
   TResult when<TResult extends Object?>(
-    TResult Function(bool enabled, bool showMediaTitle, bool showProgress,
-            List<String> excludedLibraries)
+    TResult Function(
+            bool enabled, String applicationId, List<String> excludedLibraries)
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _DiscordSettingsModel():
-        return $default(_that.enabled, _that.showMediaTitle, _that.showProgress,
-            _that.excludedLibraries);
+        return $default(
+            _that.enabled, _that.applicationId, _that.excludedLibraries);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -239,15 +230,15 @@ extension DiscordSettingsModelPatterns on DiscordSettingsModel {
 
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>(
-    TResult? Function(bool enabled, bool showMediaTitle, bool showProgress,
-            List<String> excludedLibraries)?
+    TResult? Function(
+            bool enabled, String applicationId, List<String> excludedLibraries)?
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _DiscordSettingsModel() when $default != null:
-        return $default(_that.enabled, _that.showMediaTitle, _that.showProgress,
-            _that.excludedLibraries);
+        return $default(
+            _that.enabled, _that.applicationId, _that.excludedLibraries);
       case _:
         return null;
     }
@@ -259,8 +250,7 @@ extension DiscordSettingsModelPatterns on DiscordSettingsModel {
 class _DiscordSettingsModel extends DiscordSettingsModel {
   const _DiscordSettingsModel(
       {this.enabled = false,
-      this.showMediaTitle = false,
-      this.showProgress = true,
+      this.applicationId = '1449114323279548416',
       final List<String> excludedLibraries = const []})
       : _excludedLibraries = excludedLibraries,
         super._();
@@ -272,10 +262,7 @@ class _DiscordSettingsModel extends DiscordSettingsModel {
   final bool enabled;
   @override
   @JsonKey()
-  final bool showMediaTitle;
-  @override
-  @JsonKey()
-  final bool showProgress;
+  final String applicationId;
   final List<String> _excludedLibraries;
   @override
   @JsonKey()
@@ -304,7 +291,7 @@ class _DiscordSettingsModel extends DiscordSettingsModel {
 
   @override
   String toString() {
-    return 'DiscordSettingsModel(enabled: $enabled, showMediaTitle: $showMediaTitle, showProgress: $showProgress, excludedLibraries: $excludedLibraries)';
+    return 'DiscordSettingsModel(enabled: $enabled, applicationId: $applicationId, excludedLibraries: $excludedLibraries)';
   }
 }
 
@@ -317,10 +304,7 @@ abstract mixin class _$DiscordSettingsModelCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {bool enabled,
-      bool showMediaTitle,
-      bool showProgress,
-      List<String> excludedLibraries});
+      {bool enabled, String applicationId, List<String> excludedLibraries});
 }
 
 /// @nodoc
@@ -337,8 +321,7 @@ class __$DiscordSettingsModelCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   $Res call({
     Object? enabled = null,
-    Object? showMediaTitle = null,
-    Object? showProgress = null,
+    Object? applicationId = null,
     Object? excludedLibraries = null,
   }) {
     return _then(_DiscordSettingsModel(
@@ -346,14 +329,10 @@ class __$DiscordSettingsModelCopyWithImpl<$Res>
           ? _self.enabled
           : enabled // ignore: cast_nullable_to_non_nullable
               as bool,
-      showMediaTitle: null == showMediaTitle
-          ? _self.showMediaTitle
-          : showMediaTitle // ignore: cast_nullable_to_non_nullable
-              as bool,
-      showProgress: null == showProgress
-          ? _self.showProgress
-          : showProgress // ignore: cast_nullable_to_non_nullable
-              as bool,
+      applicationId: null == applicationId
+          ? _self.applicationId
+          : applicationId // ignore: cast_nullable_to_non_nullable
+              as String,
       excludedLibraries: null == excludedLibraries
           ? _self._excludedLibraries
           : excludedLibraries // ignore: cast_nullable_to_non_nullable

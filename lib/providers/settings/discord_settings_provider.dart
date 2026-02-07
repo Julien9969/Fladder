@@ -29,12 +29,8 @@ class DiscordSettingsNotifier extends StateNotifier<DiscordSettingsModel> {
     state = state.copyWith(enabled: value);
   }
 
-  void setShowMediaTitle(bool value) {
-    state = state.copyWith(showMediaTitle: value);
-  }
-
-  void setShowProgress(bool value) {
-    state = state.copyWith(showProgress: value);
+  void setApplicationId(String value) {
+    state = state.copyWith(applicationId: value);
   }
 
   void toggleLibraryExclusion(String libraryId) {

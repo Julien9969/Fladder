@@ -10,8 +10,7 @@ _DiscordSettingsModel _$DiscordSettingsModelFromJson(
         Map<String, dynamic> json) =>
     _DiscordSettingsModel(
       enabled: json['enabled'] as bool? ?? false,
-      showMediaTitle: json['showMediaTitle'] as bool? ?? false,
-      showProgress: json['showProgress'] as bool? ?? true,
+      applicationId: json['applicationId'] as String? ?? '1449114323279548416',
       excludedLibraries: (json['excludedLibraries'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
@@ -22,7 +21,6 @@ Map<String, dynamic> _$DiscordSettingsModelToJson(
         _DiscordSettingsModel instance) =>
     <String, dynamic>{
       'enabled': instance.enabled,
-      'showMediaTitle': instance.showMediaTitle,
-      'showProgress': instance.showProgress,
+      'applicationId': instance.applicationId,
       'excludedLibraries': instance.excludedLibraries,
     };

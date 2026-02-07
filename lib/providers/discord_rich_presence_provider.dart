@@ -2,15 +2,19 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
-import 'package:discord_rich_presence/discord_rich_presence.dart' as drp;
+import 'package:collection/collection.dart';
+import 'package:dart_discord_presence/dart_discord_presence.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart';
 import 'package:fladder/models/item_base_model.dart';
 import 'package:fladder/models/items/episode_model.dart';
+import 'package:fladder/models/items/item_stream_model.dart';
 import 'package:fladder/models/items/movie_model.dart';
 import 'package:fladder/models/playback/playback_model.dart';
+import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/settings/discord_settings_provider.dart';
 
 final discordRichPresenceProvider = Provider<DiscordRichPresenceService>((ref) {
@@ -37,66 +41,126 @@ class DiscordRichPresenceService {
 
   final Ref ref;
 
-  // Discord Application ID - Create one at https://discord.com/developers/applications
-  // ignore: unused_field
-  static const String _applicationId = '1449114323279548416'; // Fladder Discord Application ID
-  static const String _largeImageKey = 'fladder_icon';
-  static const int _maxConnectionAttempts = 5;
-  static const Duration _connectionRetryDelay = Duration(seconds: 1);
+  // External URL for the Fladder icon (Discord allows external URLs for assets)
+  static const String _largeImageUrl =
+      'https://raw.githubusercontent.com/Fladder-App/Fladder/refs/heads/master/icons/production/app-icon.png';
 
   bool _isInitialized = false;
-  bool _isConnected = false;
+  bool _isInitializing = false;
   bool _hasActivePresence = false;
   DateTime? _sessionStart;
+  String? _currentLibraryId; // Cached library ID for current playback session
 
-  drp.Client? _client;
-  Completer<void>? _connectionCompleter;
+  DiscordRPC? _rpc;
+  StreamSubscription<DiscordErrorEvent>? _errorSubscription;
+  StreamSubscription<DiscordDisconnectedEvent>? _disconnectedSubscription;
+  StreamSubscription<DiscordReadyEvent>? _readySubscription;
 
-  bool get isSupported => !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  bool get isSupported => !kIsWeb && DiscordRPC.isAvailable;
 
   bool get isEnabled => ref.read(discordSettingsProvider).enabled;
 
   Future<void> initialize() async {
-    if (!isSupported || _isInitialized) return;
+    if (!isSupported || _isInitialized || _isInitializing) return;
+
+    _isInitializing = true;
 
     try {
-      if (!isEnabled) return;
-      final connected = await _ensureConnection();
-      if (connected) {
-        _isInitialized = true;
-        log('Discord Rich Presence initialized');
+      if (!isEnabled) {
+        _isInitializing = false;
+        return;
       }
+
+      _rpc = DiscordRPC();
+
+      // Set up error handling
+      _errorSubscription = _rpc!.onError.listen((event) {
+        log('Discord RPC error: ${event.message} (code: ${event.errorCode})');
+      });
+
+      _disconnectedSubscription = _rpc!.onDisconnected.listen((event) {
+        log('Discord RPC disconnected: ${event.message}');
+        _isInitialized = false;
+        _hasActivePresence = false;
+      });
+
+      // Wait for ready event
+      final readyCompleter = Completer<void>();
+      _readySubscription = _rpc!.onReady.listen((event) {
+        log('Discord RPC ready: connected as ${event.user.username}');
+        _isInitialized = true;
+        if (!readyCompleter.isCompleted) {
+          readyCompleter.complete();
+        }
+      });
+
+      final applicationId = ref.read(discordSettingsProvider).applicationId;
+      await _rpc!.initialize(applicationId);
+
+      // Wait for ready event with timeout
+      await readyCompleter.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          log('Discord RPC ready timeout - assuming connected');
+          _isInitialized = true;
+        },
+      );
+
+      log('Discord Rich Presence initialized');
+    } on DiscordNotRunningException {
+      log('Discord is not running - Rich Presence disabled');
+      _rpc = null;
+    } on DiscordConnectionException catch (e) {
+      log('Failed to connect to Discord: ${e.message}');
+      _rpc = null;
     } catch (e) {
       log('Failed to initialize Discord Rich Presence: $e');
+      _rpc = null;
+    } finally {
+      _isInitializing = false;
     }
   }
 
   Future<void> connect() async {
-    await _ensureConnection();
+    if (!_isInitialized) {
+      await initialize();
+    }
   }
 
   Future<void> disconnect() async {
     if (!isSupported) return;
 
     try {
-      await _client?.disconnect();
-      _isConnected = false;
+      await _errorSubscription?.cancel();
+      await _disconnectedSubscription?.cancel();
+      await _readySubscription?.cancel();
+      _errorSubscription = null;
+      _disconnectedSubscription = null;
+      _readySubscription = null;
+
+      await _rpc?.dispose();
+      _rpc = null;
       _isInitialized = false;
       _hasActivePresence = false;
       _sessionStart = null;
-      _client = null;
       log('Discord Rich Presence disconnected');
     } catch (e) {
       log('Failed to disconnect from Discord: $e');
+      // Reset state anyway
+      _rpc = null;
+      _isInitialized = false;
+      _hasActivePresence = false;
+      _sessionStart = null;
     }
   }
 
   Future<void> clearActivity() async {
-    if (!isSupported || (_client == null && !_hasActivePresence)) return;
+    if (!isSupported || (_rpc == null && !_hasActivePresence)) return;
 
     try {
-      await disconnect();
+      await _rpc?.clearPresence();
       _hasActivePresence = false;
+      _currentLibraryId = null; // Clear cached library ID
       log('Discord Rich Presence activity cleared');
     } catch (e) {
       log('Failed to clear Discord activity: $e');
@@ -112,107 +176,66 @@ class DiscordRichPresenceService {
     final settings = ref.read(discordSettingsProvider);
     final item = playbackModel.item;
 
+    // Get or fetch library ID (cached for the playback session)
+    _currentLibraryId ??= await _getLibraryId(item);
+
     // Check if the library is excluded
-    if (settings.excludedLibraries.contains(item.parentId)) {
+    if (_currentLibraryId != null && settings.excludedLibraries.contains(_currentLibraryId)) {
       await clearActivity();
       return;
     }
 
     try {
-      final connected = await _ensureConnection();
-      if (!connected || _client == null) {
-        return;
+      if (!_isInitialized || _rpc == null) {
+        await initialize();
+        if (_rpc == null || !_isInitialized) return;
       }
 
-      final presenceInfo = _buildPresenceInfo(item, settings.showMediaTitle, settings.showProgress, position, playing);
+      final presenceInfo = _buildPresenceInfo(item, position, playing);
 
       if (presenceInfo != null) {
-        final activity = drp.Activity(
-          name: 'Fladder',
+        // Get the image URL - use series image for episodes, movie image for movies
+        final imageUrl = _getImageUrl(item) ?? _largeImageUrl;
+
+        final presence = DiscordPresence(
+          type: DiscordActivityType.watching,
           details: presenceInfo.details,
           state: presenceInfo.state,
-          type: drp.ActivityType.watching,
-          timestamps: _buildTimestamps(position, settings.showProgress && playing),
-          assets: _buildAssets(presenceInfo.largeImageText),
+          timestamps: _buildTimestamps(position, playing),
+          largeAsset: DiscordAsset.fromUrl(imageUrl, text: presenceInfo.largeImageText),
         );
 
-        await _client!.setActivity(activity);
+        await _rpc!.setPresence(presence);
         _hasActivePresence = true;
         log('Discord Rich Presence updated: ${presenceInfo.details} - ${presenceInfo.state}');
       } else {
         await clearActivity();
       }
-    } on SocketException catch (e) {
-      log('Failed to update Discord presence: $e');
-      await disconnect();
+    } on DiscordNotRunningException {
+      log('Discord is not running');
+      _isInitialized = false;
+    } on DiscordConnectionException catch (e) {
+      log('Discord connection lost: ${e.message}');
+      _isInitialized = false;
     } catch (e) {
       log('Failed to update Discord presence: $e');
     }
   }
 
-  Future<bool> _ensureConnection() async {
-    if (!isSupported || !isEnabled) return false;
-    if (_client != null && _isConnected) return true;
-
-    if (_connectionCompleter != null) {
-      try {
-        await _connectionCompleter!.future;
-      } catch (_) {
-        // Swallow connection errors handled elsewhere.
-      }
-      return _isConnected;
+  String? _getImageUrl(ItemBaseModel item) {
+    // For episodes, use the series (parent) image
+    if (item is EpisodeModel) {
+      return item.parentImages?.primary?.path ?? item.images?.primary?.path;
     }
-
-    final completer = Completer<void>();
-    _connectionCompleter = completer;
-
-    try {
-      for (var attempt = 1; attempt <= _maxConnectionAttempts; attempt++) {
-        try {
-          final client = drp.Client(
-            clientId: _applicationId,
-            onTransportClosed: _handleTransportClosed,
-          );
-          await client.connect();
-          _client = client;
-          _isConnected = true;
-          _isInitialized = true;
-          log('Discord Rich Presence connected');
-          completer.complete();
-          return true;
-        } catch (e) {
-          _client = null;
-          _isConnected = false;
-          _isInitialized = false;
-
-          if (attempt == _maxConnectionAttempts) {
-            log("Failed to connect to Discord's IPC after $attempt attempts. Is the Discord desktop app running? Error: $e");
-            completer.completeError(e);
-            return false;
-          }
-
-          final delay = _connectionRetryDelay * attempt;
-          log("Discord IPC connection failed (attempt $attempt/$_maxConnectionAttempts). Retrying in ${delay.inMilliseconds}ms...");
-          await Future.delayed(delay);
-        }
-      }
-    } finally {
-      if (_connectionCompleter == completer) {
-        _connectionCompleter = null;
-      }
+    // For movies and other items with streaming capability, use the item's own image
+    if (item is ItemStreamModel) {
+      return item.images?.primary?.path;
     }
-
-    return false;
+    // Fallback to the item's own image
+    return item.images?.primary?.path;
   }
 
-  void _handleTransportClosed() {
-    _isConnected = false;
-    _hasActivePresence = false;
-    _sessionStart = null;
-    _client = null;
-  }
-
-  drp.ActivityTimestamps? _buildTimestamps(Duration? position, bool includeProgress) {
+  DiscordTimestamps? _buildTimestamps(Duration? position, bool includeProgress) {
     if (!includeProgress || position == null) {
       _sessionStart = null;
       return null;
@@ -220,21 +243,11 @@ class DiscordRichPresenceService {
 
     final now = DateTime.now();
     _sessionStart = now.subtract(position);
-    return drp.ActivityTimestamps(start: _sessionStart);
-  }
-
-  drp.ActivityAssets? _buildAssets(String label) {
-    if (_largeImageKey.isEmpty) return null;
-    return drp.ActivityAssets(
-      largeImage: _largeImageKey,
-      largeText: label,
-    );
+    return DiscordTimestamps.started(_sessionStart!);
   }
 
   _PresenceInfo? _buildPresenceInfo(
     ItemBaseModel? item,
-    bool showTitle,
-    bool showProgress,
     Duration? position,
     bool playing,
   ) {
@@ -245,35 +258,20 @@ class DiscordRichPresenceService {
     String largeImageText = 'Fladder';
 
     if (item is EpisodeModel) {
-      if (showTitle) {
-        details = item.seriesName ?? item.name;
-        state = 'S${item.season}:E${item.episode} - ${item.name}';
-      } else {
-        details = 'Watching a TV Show';
-        state = playing ? 'Playing' : 'Paused';
-      }
+      details = item.seriesName ?? item.name;
+      state = 'S${item.season}:E${item.episode} - ${item.name}';
       largeImageText = 'TV Show';
     } else if (item is MovieModel) {
-      if (showTitle) {
-        details = item.name;
-        final year = item.overview.yearAired;
-        state = year != null ? '($year)' : '';
-      } else {
-        details = 'Watching a Movie';
-        state = playing ? 'Playing' : 'Paused';
-      }
+      details = item.name;
+      final year = item.overview.yearAired;
+      state = year != null ? '($year)' : '';
       largeImageText = 'Movie';
     } else {
-      if (showTitle) {
-        details = item.name;
-        state = playing ? 'Playing' : 'Paused';
-      } else {
-        details = 'Watching Media';
-        state = playing ? 'Playing' : 'Paused';
-      }
+      details = item.name;
+      state = playing ? 'Playing' : 'Paused';
     }
 
-    if (showProgress && position != null) {
+    if (position != null) {
       final positionStr = _formatDuration(position);
       state = '$state • $positionStr';
     }
@@ -290,6 +288,31 @@ class DiscordRichPresenceService {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<String?> _getLibraryId(ItemBaseModel item) async {
+    try {
+      final api = ref.read(jellyApiProvider);
+      final response = await api.api.itemsItemIdAncestorsGet(itemId: item.id, userId: api.account?.id);
+
+      if (response.isSuccessful && response.body != null) {
+        // Find the collection folder (library) in ancestors
+        // It's typically the last ancestor with type CollectionFolder
+        final collectionFolder = response.body?.lastWhereOrNull(
+          (ancestor) => ancestor.type == BaseItemKind.collectionfolder,
+        );
+        if (collectionFolder?.id != null) {
+          log('Library ID found: ${collectionFolder!.id}');
+          return collectionFolder.id;
+        }
+      }
+    } catch (e) {
+      log('Failed to get library ID from ancestors: $e');
+    }
+
+    // Fallback to parentId for direct children of libraries
+    log('Using fallback parentId: ${item.parentId}');
+    return item.parentId;
   }
 
   Future<void> dispose() async {

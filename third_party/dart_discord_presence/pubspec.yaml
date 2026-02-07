@@ -1,0 +1,9 @@
+name: dart_discord_presence
+version: 1.1.0-fladder.1
+description: Discord Rich Presence shim compatible with Dart 3.1+.
+
+environment:
+  sdk: ">=3.1.3 <4.0.0"
+
+dependencies:
+  discord_rich_presence: ^1.1.1

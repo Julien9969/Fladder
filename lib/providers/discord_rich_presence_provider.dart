@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer';
-import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:dart_discord_presence/dart_discord_presence.dart';
@@ -75,7 +74,7 @@ class DiscordRichPresenceService {
 
       // Set up error handling
       _errorSubscription = _rpc!.onError.listen((event) {
-        log('Discord RPC error: ${event.message} (code: ${event.errorCode})');
+        log('Discord RPC error: ${event.message}');
       });
 
       _disconnectedSubscription = _rpc!.onDisconnected.listen((event) {

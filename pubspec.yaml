@@ -138,7 +138,8 @@ dependencies:
   
   # Fix cjk font rendering issue on Windows
   chinese_font_library: ^1.2.0
-  dart_discord_presence: ^1.1.0
+  dart_discord_presence:
+    path: third_party/dart_discord_presence
 
 dependency_overrides:
   media_kit:
